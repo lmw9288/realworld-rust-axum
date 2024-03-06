@@ -7,6 +7,8 @@ use rand::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
+use realworld_rust_axum::models::user::{ UserLoginRequest, UserRequest, UserResponse, UserResponseModel };
+
 #[tokio::main]
 async fn main() {
     // build our application with a single route
@@ -55,49 +57,6 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-#[derive(Deserialize, Debug)]
-struct UserLoginRequest {
-    user: UserLoginModel,
-}
 
-#[derive(Deserialize, Debug)]
-struct UserLoginModel {
-    email: String,
-    password: String,
-}
 
-#[derive(Deserialize)]
-struct UserRequest {
-    user: UserRequestModel,
-}
 
-#[derive(Deserialize, Debug)]
-struct UserRequestModel {
-    username: String,
-    email: String,
-    password: String,
-}
-
-#[derive(Serialize)]
-struct UserResponse {
-    user: UserResponseModel,
-}
-
-#[derive(Serialize)]
-struct UserResponseModel {
-    username: String,
-    email: String,
-    token: String,
-    bio: String,
-    image: Option<String>,
-}
-
-pub async fn registration() {
-    // todo: implement
-
-    // models::User {
-    //     username: "test".to_owned(),
-    //     password: "test".to_owned(),
-    //     email: "test".to_owned(),
-    // }
-}
