@@ -1,11 +1,12 @@
 use axum::{
-    http::StatusCode,
+    http::{status, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
 use sqlx::{query, query_as, MySql};
 
 use crate::{
+    config::{AppError, Claims},
     db::pool,
     models::user::{
         User, UserLoginRequest, UserRegistryRequest, UserResponse, UserResponseModel,
@@ -17,7 +18,7 @@ use crate::{
  */
 pub async fn registry(
     Json(UserRegistryRequest { user }): Json<UserRegistryRequest>,
-) -> Result<Json<UserResponse>, AppError> {
+) -> Result<Json<UserResponse>, StatusCode> {
     let pool = &pool().await;
     let rows = query::<MySql>("insert into user (username,email,password) values (?,?,?)")
         .bind(user.username)
@@ -41,25 +42,45 @@ pub async fn registry(
             match one {
                 Ok(one) => {
                     println!("one: {:#?}", one);
-                    return Ok(Json(UserResponse {
-                        user: UserResponseModel {
-                            username: one.username,
-                            email: one.email,
-                            bio: one.bio,
-                            image: one.image,
-                            token: Some("test".to_owned()),
-                        },
-                    }));
+
+                    let my_claims = Claims {
+                        sub: one.clone().username,
+                        exp: 1000 * 60 * 60 * 12,
+                    };
+
+                    let token = jsonwebtoken::encode(
+                        &jsonwebtoken::Header::default(),
+                        &my_claims,
+                        &jsonwebtoken::EncodingKey::from_secret("secret".as_ref()),
+                    );
+
+                    match token {
+                        Ok(token) => {
+                            return Ok(Json(UserResponse {
+                                user: UserResponseModel {
+                                    username: one.clone().username,
+                                    email: one.email,
+                                    bio: one.bio,
+                                    image: one.image,
+                                    token: Some(token),
+                                },
+                            }));
+                        }
+                        Err(err) => {
+                            println!("token error: {:#?}", err);
+                            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                        }
+                    }
                 }
                 Err(err) => {
                     println!("one error: {:#?}", err);
-                    return Err(AppError::from(err));
+                    return Err(StatusCode::BAD_REQUEST);
                 }
             }
         }
         Err(err) => {
             println!("rows error: {:#?}", err);
-            return Err(AppError::from(err));
+            return Err(StatusCode::BAD_REQUEST);
         }
     }
 }
@@ -113,29 +134,4 @@ pub async fn update_user(
         },
     };
     Json(user_response)
-}
-
-// Make our own error that wraps `anyhow::Error`.
-pub struct AppError(anyhow::Error);
-
-// Tell axum how to convert `AppError` into a response.
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Something went wrong: {}", self.0),
-        )
-            .into_response()
-    }
-}
-
-// This enables using `?` on functions that return `Result<_, anyhow::Error>` to turn them into
-// `Result<_, AppError>`. That way you don't need to do that manually.
-impl<E> From<E> for AppError
-where
-    E: Into<anyhow::Error>,
-{
-    fn from(err: E) -> Self {
-        Self(err.into())
-    }
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Debug, sqlx::FromRow, sqlx::Decode)]
+#[derive(Clone, Deserialize, Serialize, Debug, sqlx::FromRow, sqlx::Decode)]
 pub struct User {
     pub id: i32,
     pub username: String,
