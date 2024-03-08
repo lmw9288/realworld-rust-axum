@@ -1,17 +1,20 @@
 use std::sync::Arc;
 
 use axum::{http::StatusCode, Extension, Json};
-use chrono::{Date, DateTime, Duration, Local};
-use sqlx::{query, query_as, MySql};
+use chrono::Local;
+use sqlx::{query, query_as, query_builder, query_with, Execute, MySql, QueryBuilder};
 use tokio::sync::RwLock;
 
 use crate::{
     config::{gen_token, Claims},
     db::my_pool,
-    models::{user::{
-        User, UserLoginRequest, UserRegistryRequest, UserResponse, UserResponseModel,
-        UserUpdateRequest,
-    }, SessionState},
+    models::{
+        user::{
+            User, UserLoginRequest, UserRegistryRequest, UserResponse, UserResponseModel,
+            UserUpdateRequest,
+        },
+        SessionState,
+    },
 };
 /**
  * Registration
@@ -121,10 +124,10 @@ pub async fn login(
                         },
                     }));
                 }
-                Err(err) => return Err(StatusCode::BAD_REQUEST),
+                Err(_err) => return Err(StatusCode::BAD_REQUEST),
             }
         }
-        Err(err) => return Err(StatusCode::BAD_REQUEST),
+        Err(_err) => return Err(StatusCode::BAD_REQUEST),
     }
 }
 
@@ -133,22 +136,34 @@ pub async fn login(
  */
 pub async fn current_user(
     Extension(session_state): Extension<Arc<RwLock<SessionState>>>,
-) -> Result<Json<UserResponse>, StatusCode>  {
-
-    let mut session_state = session_state.write().await;
+) -> Result<Json<UserResponse>, StatusCode> {
+    let session_state = session_state.read().await;
 
     if let Some(user_id) = &session_state.user_id {
         println!("current user id: {:#?}", user_id);
 
-        Ok(Json(UserResponse {
-            user: UserResponseModel {
-                username: "user.username".to_owned(),
-                email: "test@mail.com".to_owned(),
-                token: Some("test".to_owned()),
-                bio: None,
-                image: None,
-            },
-        }))
+        let one = query_as::<MySql, User>(
+            "select id, username, email, bio, image from user where id = ?",
+        )
+        .bind(user_id)
+        .fetch_one(&my_pool().await)
+        .await;
+
+        match one {
+            Ok(one) => {
+                return Ok(Json(UserResponse {
+                    user: UserResponseModel {
+                        username: one.clone().username,
+                        email: one.email,
+                        bio: one.bio,
+                        image: one.image,
+                        token: session_state.clone().token,
+                    },
+                }));
+            }
+
+            Err(_err) => return Err(StatusCode::BAD_REQUEST),
+        }
     } else {
         Err(StatusCode::UNAUTHORIZED)
     }
@@ -158,16 +173,54 @@ pub async fn current_user(
  * Update User
  */
 pub async fn update_user(
+    Extension(session_state): Extension<Arc<RwLock<SessionState>>>,
     Json(UserUpdateRequest { user }): Json<UserUpdateRequest>,
-) -> Json<UserResponse> {
-    let user_response = UserResponse {
-        user: UserResponseModel {
-            username: "user.username".to_owned(),
-            email: user.email,
-            token: Some("test".to_owned()),
-            bio: None,
-            image: None,
-        },
-    };
-    Json(user_response)
+) -> Result<Json<UserResponse>, StatusCode> {
+    let session_state = session_state.read().await;
+
+    // let mut columns = vec![];
+    // let mut values = vec![];
+
+    if let Some(user_id) = &session_state.user_id {
+        let q = query::<MySql>("update user set email = ? where id = ?");
+        let result = q
+            .bind(user.email)
+            .bind(user_id)
+            .execute(&my_pool().await)
+            .await;
+
+        match result {
+            Ok(_result) => {
+                let one = query_as::<MySql, User>(
+                    "select id, username, email, bio, image from user where id = ?",
+                )
+                .bind(user_id)
+                .fetch_one(&my_pool().await)
+                .await;
+                match one {
+                    Ok(one) => {
+                        return Ok(Json(UserResponse {
+                            user: UserResponseModel {
+                                username: one.clone().username,
+                                email: one.email,
+                                token: session_state.clone().token,
+                                bio: one.bio,
+                                image: one.image,
+                            },
+                        }))
+                    }
+                    Err(_err) => {
+                        println!("get user error");
+                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    }
+                }
+            }
+            Err(err) => {
+                println!("update user error {}", err);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
 }

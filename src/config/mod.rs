@@ -4,6 +4,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+pub mod middle_layer;
+
 // Make our own error that wraps `anyhow::Error`.
 pub struct AppError(anyhow::Error);
 

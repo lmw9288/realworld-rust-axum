@@ -53,7 +53,9 @@ pub struct UserUpdateRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UserUpdateModel {
-    pub email: String,
-    pub bio: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub email: Option<String>,
+    pub bio: Option<String>,
     pub image: Option<String>,
 }
