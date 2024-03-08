@@ -2,6 +2,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use serde::{Deserialize, Serialize};
 
 // Make our own error that wraps `anyhow::Error`.
 pub struct AppError(anyhow::Error);
@@ -28,12 +29,27 @@ where
     }
 }
 
-use serde::{Serialize, Deserialize};
-use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey};
 
 /// Our claims struct, it needs to derive `Serialize` and/or `Deserialize`
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
+    pub user_id: i64,
     pub sub: String,
     pub exp: usize,
+}
+
+pub fn gen_token(claims: &Claims) -> Result<String, jsonwebtoken::errors::Error> {
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        claims,
+        &jsonwebtoken::EncodingKey::from_secret("secret".as_ref()),
+    )
+}
+
+pub fn parse_token(token: &str) -> Result<jsonwebtoken::TokenData<Claims>, jsonwebtoken::errors::Error> {
+    jsonwebtoken::decode(
+        token,
+        &jsonwebtoken::DecodingKey::from_secret("secret".as_ref()),
+        &jsonwebtoken::Validation::default(),
+    )
 }

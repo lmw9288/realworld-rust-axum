@@ -1,7 +1,7 @@
 use sqlx::{mysql::MySqlPoolOptions, MySql, Pool};
 
 
-pub async fn pool() -> Pool<MySql> {
+pub async fn my_pool() -> Pool<MySql> {
     let pool = MySqlPoolOptions::new()
         .max_connections(20)
         .connect("mysql://root@localhost:3306/realworld-axum-sqlx")
