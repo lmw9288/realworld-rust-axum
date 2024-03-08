@@ -4,7 +4,7 @@ use axum::{
 };
 
 use realworld_rust_axum::{
-    config::middle_layer::{parse_jwt_layer, print_request_response},
+    config::middle_layer::parse_jwt_layer,
     routes::users::{current_user, login, registry, update_user},
 };
 use tower_http::trace::TraceLayer;

@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use axum::{http::StatusCode, Extension, Json};
 use chrono::Local;
-use sqlx::{query, query_as, query_builder, query_with, Execute, MySql, QueryBuilder};
+use sqlx::{
+    query, query_as, MySql,
+};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -182,12 +184,36 @@ pub async fn update_user(
     // let mut values = vec![];
 
     if let Some(user_id) = &session_state.user_id {
-        let q = query::<MySql>("update user set email = ? where id = ?");
-        let result = q
-            .bind(user.email)
-            .bind(user_id)
-            .execute(&my_pool().await)
-            .await;
+        let mut columns = vec![];
+        let mut values = vec![];
+        if let Some(username) = user.username {
+            columns.push("username = ?");
+            values.push(username);
+        }
+        if let Some(email) = user.email {
+            columns.push("email = ?");
+            values.push(email);
+        }
+        if let Some(password) = user.password {
+            columns.push("password = ?");
+            values.push(password);
+        }
+        if let Some(bio) = user.bio {
+            columns.push("bio = ?");
+            values.push(bio);
+        }
+        if let Some(image) = user.image {
+            columns.push("image = ?");
+            values.push(image);
+        }
+        let sql = format!("update user set {} where id = ?", columns.join(", "));
+        let sql = sql.as_str();
+
+        let mut q = query::<MySql>(sql);
+        for ele in values {
+            q = q.bind(ele);
+        }
+        let result = q.bind(user_id).execute(&my_pool().await).await;
 
         match result {
             Ok(_result) => {
